@@ -1,0 +1,3 @@
+[submodule "thirdparty/oscpp"]
+	path = thirdparty/oscpp
+	url = https://github.com/kaoskorobase/oscpp
