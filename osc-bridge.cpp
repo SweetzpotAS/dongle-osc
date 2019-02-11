@@ -1,7 +1,10 @@
 #include <oscpp/client.hpp>
 
 #include <cstdio>
+#include <string>
 #include <cstdlib>
+#include <cinttypes>
+#include <regex>
 #include <fcntl.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -18,8 +21,9 @@ static std::string to_string(sockaddr *in);
 static bool split_host_port(const std::string &str, std::string &host, std::string &port);
 
 struct force_packet {
-    uint32_t timestamp;
-    uint16_t value;
+    std::string mac;
+    int32_t timestamp;
+    int32_t value;
 };
 
 class osc_listener {
@@ -78,6 +82,7 @@ public:
 class osc_publisher {
     int s = -1;
     addrinfo *remote = nullptr;
+    uint64_t counter = 0;
 
 public:
     virtual ~osc_publisher() {
@@ -147,16 +152,25 @@ public:
     int publish(const force_packet &force_packet) {
         uint8_t buffer[1000];
 
+        std::string prefix = "/breathing";
+        printf("Sending OSC packet to %s: s='%s', i=%" PRId32 " i=%" PRId32 "\n",
+               prefix.c_str(),
+               force_packet.mac.c_str(),
+               force_packet.timestamp,
+               force_packet.value);
+
         OSCPP::Client::Packet packet(buffer, sizeof(buffer));
         packet
-                .openBundle(force_packet.timestamp)
-                .openMessage("/s_new", 2)
+                .openBundle(counter++)
+                .openMessage(prefix.c_str(), 3)
+                .string(force_packet.mac.c_str())
+                .int32(force_packet.timestamp)
                 .int32(force_packet.value)
                 .closeMessage()
                 .closeBundle();
-        auto sz = packet.size();
+        ssize_t sz = packet.size();
 
-        if (sendto(s, buffer, packet.size(), 0, remote->ai_addr, remote->ai_addrlen) != packet.size()) {
+        if (sendto(s, buffer, packet.size(), 0, remote->ai_addr, remote->ai_addrlen) != sz) {
             perror("sendto");
             return 1;
         }
@@ -166,18 +180,41 @@ public:
 };
 
 int on_line(osc_publisher &publisher, const std::string &line) {
-    fprintf(stderr, "parsing line: %s\n", line.c_str());
+    // fprintf(stderr, "parsing line: %s\n", line.c_str());
 
-    static uint32_t timestamp = 1;
-    static uint16_t value = 100;
-    force_packet packet{
-            .timestamp = timestamp,
-            .value = value,
-    };
-    timestamp += 1;
-    value += 10;
-    return publisher.publish(packet);
-}
+    int32_t timestamp = 0;
+    std::string mac;
+    std::array<int, 7> samples{};
+
+    std::regex r("([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}),"
+                 "([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),.*");
+
+    std::smatch matches;
+    if (!std::regex_match(line, matches, r)) {
+        return 0;
+    }
+
+    mac = matches[1].str();
+    for (size_t i = 0; i < samples.size(); i++) {
+        auto s = matches[i + 2].str();
+        samples[i] = std::stoi(s);
+    }
+
+    for (auto sample : samples) {
+        force_packet packet{
+                .mac = mac,
+                .timestamp = timestamp,
+                .value = sample,
+        };
+
+        int ret = publisher.publish(packet);
+        if (ret) {
+            return ret;
+        }
+    }
+
+    return 0;
+};
 
 struct {
     std::string remote;
@@ -227,9 +264,11 @@ int client(const std::string &remote_host, const std::string &remote_port) {
         } else {
             for (int i = 0; i < nread; i++) {
                 auto c = rbuf[i];
-                if (c == '\n') {
-                    run = on_line(publisher, str) == 0;
-                    str.clear();
+                if (c == '\n' || c == '\r') {
+                    if (!str.empty()) {
+                        run = on_line(publisher, str) == 0;
+                        str.clear();
+                    }
                 } else {
                     str += c;
                 }
@@ -246,7 +285,7 @@ static int usage(char *self, const char *msg = nullptr) {
     }
     fprintf(stderr, "usage: %s host:port\n", self);
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, " host:port The remote host and port to connect to, or local host+port to listen on\n");
+    fprintf(stderr, " host:port The remote host and port send packages to, or local host+port to listen on\n");
 
     return EXIT_FAILURE;
 }
@@ -319,12 +358,12 @@ static std::string to_string(sockaddr *in) {
     char addr[INET_ADDRSTRLEN > INET6_ADDRSTRLEN ? INET_ADDRSTRLEN : INET6_ADDRSTRLEN];
 
     if (in->sa_family == AF_INET) {
-        auto *a4 = reinterpret_cast<sockaddr_in *>(in);
+        auto *a4 = reinterpret_cast<sockaddr_in *>((void *) in);
         if (inet_ntop(AF_INET, &a4->sin_addr, addr, INET_ADDRSTRLEN) == nullptr) {
             return "";
         }
     } else if (in->sa_family == AF_INET6) {
-        auto *a6 = reinterpret_cast<sockaddr_in6 *>(in);
+        auto *a6 = reinterpret_cast<sockaddr_in6 *>((void *) in);
         if (inet_ntop(AF_INET6, &a6->sin6_addr, addr, INET6_ADDRSTRLEN) == nullptr) {
             return "";
         }
