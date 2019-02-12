@@ -1,5 +1,6 @@
 #include <oscpp/client.hpp>
 
+#include <array>
 #include <cstdio>
 #include <string>
 #include <cstdlib>
