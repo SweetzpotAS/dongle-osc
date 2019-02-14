@@ -61,28 +61,29 @@ public:
 
         auto *a4 = reinterpret_cast<struct sockaddr_in *>(&a);
         auto *a6 = reinterpret_cast<struct sockaddr_in6 *>(&a);
+        socklen_t socklen;
 
         if (remote->ai_family == AF_INET) {
             a4->sin_family = AF_INET;
             a4->sin_addr.s_addr = htonl(INADDR_ANY);
             a4->sin_port = htons(0);
+            socklen = sizeof(sockaddr_in);
         } else if (remote->ai_family == AF_INET6) {
             a6->sin6_family = AF_INET;
             a6->sin6_addr = in6addr_any;
             a6->sin6_port = htons(0);
+            socklen = sizeof(sockaddr_in6);
         } else {
-            perror("Unknown address family");
             return 1;
         }
 
-        auto *sa = reinterpret_cast<sockaddr *>(&a);
-        if (::bind(s, sa, sizeof(a))) {
+        if (::bind(s, reinterpret_cast<sockaddr *>(&a), socklen)) {
             perror("bind");
             return 1;
         }
 
-        socklen_t len = sizeof(a);
-        if (getsockname(s, sa, &len)) {
+	        socklen_t len = sizeof(a);
+        if (getsockname(s, reinterpret_cast<sockaddr *>(&a), &len)) {
             perror("getsockname");
             return 1;
         }
