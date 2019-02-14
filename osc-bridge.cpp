@@ -14,70 +14,14 @@
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <termios.h>
 
 using std::memset;
-
-static std::string to_string(sockaddr *in);
-
-static bool split_host_port(const std::string &str, std::string &host, std::string &port);
 
 struct force_packet {
     std::string mac;
     int32_t timestamp;
     int32_t value;
-};
-
-class osc_listener {
-    int s = -1;
-public:
-    virtual ~osc_listener() {
-        if (s >= 0) {
-            close(s);
-        }
-    }
-
-    int start(const std::string &local_host, const std::string &local_port) {
-        addrinfo hints{};
-        std::memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_DGRAM;
-        hints.ai_flags = AI_PASSIVE;
-
-        addrinfo *local;
-        auto gai = getaddrinfo(!local_host.empty() ? local_host.c_str() : nullptr,
-                               !local_port.empty() ? local_port.c_str() : nullptr, &hints, &local);
-        if (gai) {
-            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai));
-            return 1;
-        }
-
-        assert(local->ai_family == AF_INET || local->ai_family == AF_INET6);
-
-        s = socket(local->ai_family, local->ai_socktype, local->ai_protocol);
-
-        if (s < 0) {
-            perror("socket");
-            return 1;
-        }
-
-        if (bind(s, local->ai_addr, local->ai_addrlen) < 0) {
-            perror("bind");
-            return 1;
-        }
-
-        auto *a4 = reinterpret_cast<struct sockaddr_in *>(local->ai_addr);
-        auto *a6 = reinterpret_cast<struct sockaddr_in6 *>(local->ai_addr);
-
-        auto port = local->ai_family == AF_INET ? ntohs(a4->sin_port) : ntohs(a6->sin6_port);
-
-        fprintf(stderr, "Listening on %s:%d\n", to_string(local->ai_addr).c_str(), port);
-
-        return 0;
-    }
-
-    ssize_t recv(uint8_t *buf, size_t sz, struct sockaddr *addr, socklen_t *addr_len) {
-        return ::recvfrom(s, buf, sz, 0, addr, addr_len);
-    }
 };
 
 class osc_publisher {
@@ -143,9 +87,9 @@ public:
             return 1;
         }
 
-        auto port = remote->ai_family == AF_INET ? ntohs(a4->sin_port) : ntohs(a6->sin6_port);
-
-        printf("bind port=%d\n", port);
+//        auto port = remote->ai_family == AF_INET ? ntohs(a4->sin_port) : ntohs(a6->sin6_port);
+//
+//        printf("Bound to local port: %d\n", port);
 
         return 0;
     }
@@ -154,7 +98,7 @@ public:
         uint8_t buffer[1000];
 
         std::string prefix = "/breathing";
-        printf("Sending OSC packet to %s: s='%s', i=%" PRId32 " i=%" PRId32 "\n",
+        printf("Sending OSC packet to %s: s='%s' i=%" PRId32 " i=%" PRId32 "\n",
                prefix.c_str(),
                force_packet.mac.c_str(),
                force_packet.timestamp,
@@ -218,48 +162,92 @@ int on_line(osc_publisher &publisher, const std::string &line) {
 };
 
 struct {
-    std::string remote;
-    std::string local = "0.0.0.0";
-    bool server = false;
+    std::string remote, remote_host, remote_port;
+    std::string input;
+
+    bool set_remote(const std::string &remote) {
+        this->remote = remote;
+        return split_host_port(remote, remote_host, remote_port);
+    }
+
+    static bool split_host_port(const std::string &str, std::string &host, std::string &port) {
+        auto idx = str.find_last_of(':');
+        if (idx == std::string::npos) {
+            host = str;
+        } else {
+            if (str.length() > idx) {
+                host = str.substr(0, idx);
+                port = str.substr(idx + 1);
+            }
+
+            if (port.empty()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 } cli_options = {};
 
-int server(const std::string &local_host, const std::string &local_port) {
+int client(const std::string &input, const std::string &remote_host, const std::string &remote_port) {
 
-    osc_listener listener;
 
-    if (listener.start(local_host, local_port)) {
+    int ifd = STDIN_FILENO;
+    if (!input.empty()) {
+        if ((ifd = ::open(input.c_str(), O_RDWR | O_NOCTTY)) == -1) {
+            perror("Could not open input");
+            return 1;
+        }
+
+        termios options = {};
+        if (tcgetattr(ifd, &options)) {
+            perror("tcgetattr");
+            return 1;
+        }
+
+//        printf("options.c_cflag=%08x\n", options.c_cflag);
+//        printf("options.c_lflag=%08x\n", options.c_lflag);
+//        printf("options.c_iflag=%08x\n", options.c_iflag);
+//        printf("options.c_oflag=%08x\n", options.c_oflag);
+//        for (int i = 0; i < NCCS; i++) {
+//            cc_t cc = options.c_cc[i];
+//            printf("options.c_cc[%d]=%08x/%d\n", i, cc, cc);
+//        }
+
+        options.c_cflag &= ~PARENB;     // No parity
+        options.c_cflag &= ~CSTOPB;     // 1 stop bit
+        options.c_cflag &= ~CSIZE;      // 8-bit words
+        options.c_cflag |= CS8;
+        options.c_cflag &= ~CRTSCTS;    // No hardware-flow control
+        // We run in non-canonical mode
+        options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+        options.c_oflag &= ~OPOST;
+        options.c_iflag &= ~BRKINT;
+        options.c_cc[VMIN] = 1;
+        options.c_cc[VTIME] = 5;
+        cfsetispeed(&options, B19200);
+        cfsetospeed(&options, B19200);
+
+        if (tcsetattr(ifd, TCSANOW, &options)) {
+            perror("tcsetattr");
+            return 1;
+        }
+    }
+
+    osc_publisher publisher;
+    if (publisher.bind(remote_host, remote_port)) {
         return 1;
     }
-
-    bool run = true;
-    while (run) {
-        uint8_t buf[1024];
-        struct sockaddr_storage src_addr{};
-        socklen_t sa_len = sizeof(src_addr);
-        auto *sa = reinterpret_cast<sockaddr *>(&src_addr);
-        auto *a4 = reinterpret_cast<struct sockaddr_in *>(&src_addr);
-        auto *a6 = reinterpret_cast<struct sockaddr_in6 *>(&src_addr);
-
-        auto sz = listener.recv(buf, sizeof(buf), sa, &sa_len);
-
-        auto port = sa->sa_family == AF_INET ? ntohs(a4->sin_port) : ntohs(a6->sin6_port);
-
-        fprintf(stderr, "got %zu bytes from %d\n", sz, port);
-    }
-
-    return 0;
-}
-
-int client(const std::string &remote_host, const std::string &remote_port) {
-    osc_publisher publisher;
-    publisher.bind(remote_host, remote_port);
 
     bool run = true;
     std::string str;
     while (run) {
         char rbuf[100];
-        auto nread = read(STDIN_FILENO, rbuf, sizeof(rbuf));
+        auto nread = read(ifd, rbuf, sizeof(rbuf));
         if (nread == 0 || nread == -1) {
+            if (nread == -1) {
+                perror("read");
+            }
             run = false;
             continue;
         } else {
@@ -286,17 +274,18 @@ static int usage(char *self, const char *msg = nullptr) {
     }
     fprintf(stderr, "usage: %s host:port\n", self);
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, " host:port The remote host and port send packages to, or local host+port to listen on\n");
+    fprintf(stderr, " -i [SERIAL PORT]\n");
+    fprintf(stderr, " host:port The remote host and port send packages to\n");
 
     return EXIT_FAILURE;
 }
 
 int main(int argc, char *argv[]) {
     int opt;
-    while ((opt = getopt(argc, argv, "sh")) != -1) {
+    while ((opt = getopt(argc, argv, "i:h")) != -1) {
         switch (opt) {
-            case 's':
-                cli_options.server = true;
+            case 'i':
+                cli_options.input = optarg;
                 break;
             case 'h':
                 return usage(argv[0]);
@@ -315,78 +304,20 @@ int main(int argc, char *argv[]) {
     }
 
     if (optind == argc - 1) {
-        if (cli_options.server) {
-            cli_options.local = argv[optind];
-        } else {
-            cli_options.remote = argv[optind];
+        if (!cli_options.set_remote(argv[optind])) {
+            usage(argv[0], "Bad remote");
+            return EXIT_FAILURE;
         }
+
         optind++;
     } else if (optind != argc) {
         return usage(argv[0], "Too may arguments");
     }
 
-    if (!cli_options.server && cli_options.remote.empty()) {
+    if (cli_options.remote.empty()) {
         return usage(argv[0], "[host:port] is required");
     }
 
-    if (cli_options.server && cli_options.local.empty()) {
-        return usage(argv[0], "[host:port] is required");
-    }
-
-    std::string remote_host;
-    std::string remote_port;
-
-    if (!split_host_port(cli_options.remote, remote_host, remote_port)) {
-        usage(argv[0], "Bad remote");
-        return EXIT_FAILURE;
-    }
-
-    std::string local_host;
-    std::string local_port;
-
-    if (!split_host_port(cli_options.local, local_host, local_port)) {
-        usage(argv[0], "Bad local");
-        return EXIT_FAILURE;
-    }
-
-    printf("local: %s, host=%s, port=%s\n", cli_options.local.c_str(), local_host.c_str(), local_port.c_str());
-
-    auto ret = cli_options.server ? server(local_host, local_port) : client(remote_host, remote_port);
+    auto ret = client(cli_options.input, cli_options.remote_host, cli_options.remote_port);
     return ret ? EXIT_FAILURE : EXIT_SUCCESS;
-}
-
-static std::string to_string(sockaddr *in) {
-    char addr[INET_ADDRSTRLEN > INET6_ADDRSTRLEN ? INET_ADDRSTRLEN : INET6_ADDRSTRLEN];
-
-    if (in->sa_family == AF_INET) {
-        auto *a4 = reinterpret_cast<sockaddr_in *>((void *) in);
-        if (inet_ntop(AF_INET, &a4->sin_addr, addr, INET_ADDRSTRLEN) == nullptr) {
-            return "";
-        }
-    } else if (in->sa_family == AF_INET6) {
-        auto *a6 = reinterpret_cast<sockaddr_in6 *>((void *) in);
-        if (inet_ntop(AF_INET6, &a6->sin6_addr, addr, INET6_ADDRSTRLEN) == nullptr) {
-            return "";
-        }
-    }
-
-    return addr;
-}
-
-static bool split_host_port(const std::string &str, std::string &host, std::string &port) {
-    auto idx = str.find_last_of(':');
-    if (idx == std::string::npos) {
-        host = str;
-    } else {
-        if (str.length() > idx) {
-            host = str.substr(0, idx);
-            port = str.substr(idx + 1);
-        }
-
-        if (port.empty()) {
-            return false;
-        }
-    }
-
-    return true;
 }
