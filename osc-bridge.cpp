@@ -61,17 +61,20 @@ public:
 
         auto *a4 = reinterpret_cast<struct sockaddr_in *>(&a);
         auto *a6 = reinterpret_cast<struct sockaddr_in6 *>(&a);
+        void *in_addr;
         socklen_t socklen;
 
         if (remote->ai_family == AF_INET) {
             a4->sin_family = AF_INET;
             a4->sin_addr.s_addr = htonl(INADDR_ANY);
             a4->sin_port = htons(0);
+            in_addr = &a4->sin_addr;
             socklen = sizeof(sockaddr_in);
         } else if (remote->ai_family == AF_INET6) {
-            a6->sin6_family = AF_INET;
+            a6->sin6_family = AF_INET6;
             a6->sin6_addr = in6addr_any;
             a6->sin6_port = htons(0);
+            in_addr = &a6->sin6_addr;
             socklen = sizeof(sockaddr_in6);
         } else {
             return 1;
@@ -82,15 +85,20 @@ public:
             return 1;
         }
 
-	        socklen_t len = sizeof(a);
-        if (getsockname(s, reinterpret_cast<sockaddr *>(&a), &len)) {
-            perror("getsockname");
-            return 1;
-        }
+        if (false) {
+            socklen = sizeof(a);
+            if (getsockname(s, reinterpret_cast<sockaddr *>(&a), &socklen)) {
+                perror("getsockname");
+                return 1;
+            }
 
-//        auto port = remote->ai_family == AF_INET ? ntohs(a4->sin_port) : ntohs(a6->sin6_port);
-//
-//        printf("Bound to local port: %d\n", port);
+            socklen = sizeof(a);
+            char addr_buf[std::max(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)];
+            inet_ntop(remote->ai_family, in_addr, addr_buf, socklen);
+            auto port = remote->ai_family == AF_INET ? ntohs(a4->sin_port) : ntohs(a6->sin6_port);
+
+            printf("Bound to local port: %s:%d\n", addr_buf, port);
+        }
 
         return 0;
     }
