@@ -36,6 +36,8 @@ endin
 e 3600
 </CsScore>
 </CsoundSynthesizer>
+
+
 <bsbPanel>
  <label>Widgets</label>
  <objectName/>
@@ -52,10 +54,10 @@ e 3600
  </bgcolor>
  <bsbObject type="BSBDisplay" version="2">
   <objectName>mac</objectName>
-  <x>126</x>
-  <y>21</y>
-  <width>100</width>
-  <height>25</height>
+  <x>163</x>
+  <y>18</y>
+  <width>175</width>
+  <height>35</height>
   <uuid>{ebe15113-3bd4-49d5-8aab-80bdb829f904}</uuid>
   <visible>true</visible>
   <midichan>0</midichan>
@@ -63,7 +65,7 @@ e 3600
   <label>F3:13:3E:5F:FE:56</label>
   <alignment>left</alignment>
   <font>Arial</font>
-  <fontsize>10</fontsize>
+  <fontsize>20</fontsize>
   <precision>3</precision>
   <color>
    <r>0</r>
@@ -81,18 +83,18 @@ e 3600
  </bsbObject>
  <bsbObject type="BSBDisplay" version="2">
   <objectName>value</objectName>
-  <x>126</x>
-  <y>84</y>
-  <width>80</width>
-  <height>25</height>
+  <x>163</x>
+  <y>131</y>
+  <width>120</width>
+  <height>35</height>
   <uuid>{48a13284-569b-4812-bfea-7f9ce5ac3bb6}</uuid>
   <visible>true</visible>
   <midichan>0</midichan>
   <midicc>-3</midicc>
-  <label>1611</label>
+  <label>1757</label>
   <alignment>left</alignment>
   <font>Arial</font>
-  <fontsize>10</fontsize>
+  <fontsize>20</fontsize>
   <precision>3</precision>
   <color>
    <r>0</r>
@@ -110,10 +112,10 @@ e 3600
  </bsbObject>
  <bsbObject type="BSBLabel" version="2">
   <objectName/>
-  <x>31</x>
+  <x>28</x>
   <y>21</y>
   <width>80</width>
-  <height>25</height>
+  <height>35</height>
   <uuid>{89dd7166-2655-4238-9f30-954df1a69e8a}</uuid>
   <visible>true</visible>
   <midichan>0</midichan>
@@ -121,7 +123,7 @@ e 3600
   <label>MAC</label>
   <alignment>left</alignment>
   <font>Arial</font>
-  <fontsize>10</fontsize>
+  <fontsize>20</fontsize>
   <precision>3</precision>
   <color>
    <r>0</r>
@@ -140,9 +142,9 @@ e 3600
  <bsbObject type="BSBLabel" version="2">
   <objectName/>
   <x>28</x>
-  <y>91</y>
+  <y>134</y>
   <width>80</width>
-  <height>25</height>
+  <height>35</height>
   <uuid>{e02e3389-7b24-4935-ac2c-8d3ac6be9ac6}</uuid>
   <visible>true</visible>
   <midichan>0</midichan>
@@ -150,7 +152,7 @@ e 3600
   <label>Value</label>
   <alignment>left</alignment>
   <font>Arial</font>
-  <fontsize>10</fontsize>
+  <fontsize>20</fontsize>
   <precision>3</precision>
   <color>
    <r>0</r>
@@ -168,10 +170,10 @@ e 3600
  </bsbObject>
  <bsbObject type="BSBLabel" version="2">
   <objectName/>
-  <x>34</x>
-  <y>56</y>
-  <width>80</width>
-  <height>25</height>
+  <x>28</x>
+  <y>77</y>
+  <width>120</width>
+  <height>35</height>
   <uuid>{c46aaea8-7f1b-46de-a150-7a3977760d03}</uuid>
   <visible>true</visible>
   <midichan>0</midichan>
@@ -179,7 +181,7 @@ e 3600
   <label>Timestamp</label>
   <alignment>left</alignment>
   <font>Arial</font>
-  <fontsize>10</fontsize>
+  <fontsize>20</fontsize>
   <precision>3</precision>
   <color>
    <r>0</r>
@@ -197,18 +199,18 @@ e 3600
  </bsbObject>
  <bsbObject type="BSBDisplay" version="2">
   <objectName>timestamp</objectName>
-  <x>126</x>
-  <y>53</y>
+  <x>163</x>
+  <y>74</y>
   <width>80</width>
-  <height>25</height>
+  <height>35</height>
   <uuid>{9533a540-c59d-48fc-8f78-c6e667e0f81e}</uuid>
   <visible>true</visible>
   <midichan>0</midichan>
   <midicc>-3</midicc>
-  <label>48</label>
+  <label>0</label>
   <alignment>left</alignment>
   <font>Arial</font>
-  <fontsize>10</fontsize>
+  <fontsize>20</fontsize>
   <precision>3</precision>
   <color>
    <r>0</r>
