@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.6)
-project(osc-bridge LANGUAGES CXX VERSION 1.0.0)
+project(dongle-osc LANGUAGES CXX VERSION 1.0.0)
 
-add_executable(osc-bridge osc-bridge.cpp)
-target_include_directories(osc-bridge PRIVATE thirdparty/oscpp/include)
-target_compile_features(osc-bridge PUBLIC cxx_std_14)
-target_compile_options(osc-bridge PRIVATE -Werror -Wall -Wextra)
+add_executable(dongle-osc dongle-osc.cpp)
+target_include_directories(dongle-osc PRIVATE thirdparty/oscpp/include)
+target_compile_features(dongle-osc PUBLIC cxx_std_14)
+target_compile_options(dongle-osc PRIVATE -Werror -Wall -Wextra)
 
-install(TARGETS osc-bridge DESTINATION bin/)
+install(TARGETS dongle-osc DESTINATION bin/)
 
 set(CPACK_PACKAGE_CONTACT "support@sweetzpot.com")
 list(APPEND CPACK_GENERATOR "TBZ2")
